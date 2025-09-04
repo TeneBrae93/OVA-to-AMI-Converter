@@ -1,4 +1,4 @@
-# .ova to AWS AMI Conversion Script
+# OVA to AWS AMI Conversion Script
 This Python script automates the process of converting an on-premises virtual machine image in .ova format into an Amazon Machine Image (AMI) on AWS. It handles all the necessary steps, including creating a temporary S3 bucket, setting up the required IAM role, uploading the OVA file, and monitoring the conversion process until completion.
 
 ## How It Works
