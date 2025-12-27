@@ -42,84 +42,94 @@ def create_s3_bucket(s3_client, bucket_name):
 
 def create_iam_role_and_policy(iam_client, s3_bucket):
     """
-    Creates the necessary IAM role and policy for VM Import/Export.
-    Checks if the role already exists to avoid errors.
+    Ensures the IAM role and inline policy for VM Import/Export exist
+    and that the policy allows access to the provided S3 bucket.
     """
-    print("Checking for existing IAM role...")
-    try:
-        iam_client.get_role(RoleName=IAM_ROLE_NAME)
-        print(f"IAM role '{IAM_ROLE_NAME}' already exists. Skipping creation.")
-    except iam_client.exceptions.NoSuchEntityException:
-        print(f"IAM role '{IAM_ROLE_NAME}' not found. Creating...")
-        
-        trust_policy = {
-            "Version": "2012-10-17",
-            "Statement": [
-                {
-                    "Effect": "Allow",
-                    "Principal": {"Service": "vmie.amazonaws.com"},
-                    "Action": "sts:AssumeRole",
-                    "Condition": {
-                        "StringEquals": {
-                            "sts:ExternalId": "vmimport"
-                        }
+    print("Ensuring IAM role and policy for VM Import/Export...")
+
+    trust_policy = {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Principal": {"Service": "vmie.amazonaws.com"},
+                "Action": "sts:AssumeRole",
+                "Condition": {
+                    "StringEquals": {
+                        "sts:ExternalId": "vmimport"
                     }
                 }
-            ]
-        }
-        
+            }
+        ]
+    }
+
+    # Create role if it does not exist
+    role_exists = False
+    try:
+        iam_client.get_role(RoleName=IAM_ROLE_NAME)
+        role_exists = True
+        print(f"IAM role '{IAM_ROLE_NAME}' already exists.")
+    except iam_client.exceptions.NoSuchEntityException:
+        print(f"IAM role '{IAM_ROLE_NAME}' not found. Creating...")
         try:
             iam_client.create_role(
                 RoleName=IAM_ROLE_NAME,
                 AssumeRolePolicyDocument=json.dumps(trust_policy)
             )
             print("IAM role created successfully.")
-            
-            # Create and attach the role policy
-            role_policy = {
-                "Version": "2012-10-17",
-                "Statement": [
-                    {
-                        "Effect": "Allow",
-                        "Action": [
-                            "s3:GetBucketLocation",
-                            "s3:GetObject",
-                            "s3:ListBucket"
-                        ],
-                        "Resource": [
-                            f"arn:aws:s3:::{s3_bucket}",
-                            f"arn:aws:s3:::{s3_bucket}/*"
-                        ]
-                    },
-                    {
-                        "Effect": "Allow",
-                        "Action": [
-                            "ec2:ModifySnapshotAttribute",
-                            "ec2:CopySnapshot",
-                            "ec2:RegisterImage",
-                            "ec2:Describe*"
-                        ],
-                        "Resource": "*"
-                    }
-                ]
-            }
-            
-            iam_client.put_role_policy(
-                RoleName=IAM_ROLE_NAME,
-                PolicyName=IAM_POLICY_NAME,
-                PolicyDocument=json.dumps(role_policy)
-            )
-            print("IAM role policy attached successfully.")
-            
-            # Wait for the role to become available
-            print("Waiting for IAM role to propagate...")
-            waiter = iam_client.get_waiter('role_exists')
-            waiter.wait(RoleName=IAM_ROLE_NAME)
-            print("IAM role is now available.")
-            
         except Exception as e:
-            print(f"Error creating IAM role or policy: {e}", file=sys.stderr)
+            print(f"Error creating IAM role: {e}", file=sys.stderr)
             sys.exit(1)
+
+    # Always (re)apply the inline policy so it matches the current bucket
+    role_policy = {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Action": [
+                    "s3:GetBucketLocation",
+                    "s3:GetObject",
+                    "s3:ListBucket"
+                ],
+                "Resource": [
+                    f"arn:aws:s3:::{s3_bucket}",
+                    f"arn:aws:s3:::{s3_bucket}/*"
+                ]
+            },
+            {
+                "Effect": "Allow",
+                "Action": [
+                    "ec2:ModifySnapshotAttribute",
+                    "ec2:CopySnapshot",
+                    "ec2:RegisterImage",
+                    "ec2:Describe*"
+                ],
+                "Resource": "*"
+            }
+        ]
+    }
+
+    try:
+        iam_client.put_role_policy(
+            RoleName=IAM_ROLE_NAME,
+            PolicyName=IAM_POLICY_NAME,
+            PolicyDocument=json.dumps(role_policy)
+        )
+        print(f"IAM role policy '{IAM_POLICY_NAME}' applied/updated for bucket '{s3_bucket}'.")
+    except Exception as e:
+        print(f"Error attaching/updating IAM role policy: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    # Wait for IAM propagation
+    try:
+        print("Waiting for IAM role/policy propagation...")
+        waiter = iam_client.get_waiter('role_exists')
+        waiter.wait(RoleName=IAM_ROLE_NAME)
+        time.sleep(5)
+        print("IAM role is available and policy should be propagated.")
+    except Exception as e:
+        print(f"Warning: IAM propagation wait encountered an issue: {e}", file=sys.stderr)
 
 def upload_ova_to_s3(s3_client, bucket_name, file_path):
     """Uploads the OVA file to the specified S3 bucket."""
