@@ -66,7 +66,7 @@ Import is complete. The AMI ID for CourseStack is ami-0a1b2c3d4e5f6g7h8
 
 ```
 
-⚙️ Configuration
+Configuration
 ----------------
 
 The script is pre-configured to share resources with the primary CourseStack account. If you need to modify the target account, update the `TARGET_ACCOUNT_ID` constant at the top of the script:
