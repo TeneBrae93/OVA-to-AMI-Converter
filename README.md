@@ -1,53 +1,77 @@
-# OVA to AWS AMI Conversion Script
-This Python script automates the process of converting an on-premises virtual machine image in .ova format into an Amazon Machine Image (AMI) on AWS. It handles all the necessary steps, including creating a temporary S3 bucket, setting up the required IAM role, uploading the OVA file, and monitoring the conversion process until completion.
+CourseStack OVA to AMI Converter
+================================
 
-## How It Works
-The script performs the following automated steps:
-1. S3 Bucket Creation: A uniquely named S3 bucket is created in your AWS account's default region to temporarily store the .ova file.
-2. IAM Role Setup: It checks for the existence of the required vmimport IAM service role. If the role does not exist, it automatically creates it with the necessary trust and resource policies to allow the VM Import/Export service to perform the conversion on your behalf.
-3. File Upload: Your local .ova file is securely uploaded to the newly created S3 bucket.
-4. Import Task Initiation: The script initiates the ImportImage task with Amazon EC2, referencing the uploaded file.
-5. Status Monitoring: It continuously polls the status of the import task and prints the progress to the console.
-6. AMI ID Output: Once the conversion is completed, the script outputs the final AMI ID, which you can use to launch new EC2 instances.
+This tool automates the ingestion of virtual machine images into the **CourseStack** ecosystem. It handles the heavy lifting of AWS infrastructure preparation, S3 uploading with real-time progress tracking, and the conversion of `.ova` files into shared Amazon Machine Images (AMIs).
 
-## Prerequisites
-Before running this script, ensure you have the following:
-- Python 3: The script requires Python 3.
-- Boto3: The AWS SDK for Python. You can install it using pip.
-- AWS Credentials: Your AWS CLI must be configured with a default profile that has administrator permissions. This includes permissions to create S3 buckets, manage IAM roles and policies, and interact with the EC2 service.
-### Installation
-If you don't have Boto3 installed, run the following command:
+Overview
+-----------
 
-```python3 -m pip install boto3```
+The script performs the following sequence of operations:
 
-### Usage
-To run the script, use the following command from your terminal, providing the path to your .ova file using the --input argument:
+1.  **Infrastructure Setup**: Creates a temporary S3 bucket and configures the necessary `vmimport` IAM roles and policies.
 
-```python3 ova_to_ami.py --input /path/to/your/file.ova```
+2.  **High-Speed Upload**: Uploads your OVA file to S3 with a real-time progress bar.
 
+3.  **AWS Conversion**: Initiates the `import-image` process and monitors progress until completion.
 
+4.  **Automated Sharing**: Automatically shares the resulting AMI and its underlying EBS storage with the CourseStack production account (`662863940582`).
 
+5.  **Cleanup**: Deletes the temporary S3 bucket and OVA file to minimize costs.
 
-### Example
+🛠 Prerequisites
+----------------
+
+-   **Python 3.6+**
+
+-   **AWS CLI** configured with permissions to manage IAM, S3, and EC2.
+
+-   **Required Libraries**:
+
+    Bash
+
+    ```
+    pip install boto3 tqdm
+
+    ```
+
+Usage
+--------
+
+Clone this repository and run the script pointing to your local `.ova` file:
+
+Bash
+
 ```
-tyler@tyler:~/infrastructure$ python3 ova_to_ami.py --input BuildingMagic-1.2.ova
-Starting OVA to AMI conversion script...
-Attempting to create S3 bucket: ova-ami-import-1756932359-81ddd9a1
-Successfully created S3 bucket: ova-ami-import-1756932359-81ddd9a1
-Checking for existing IAM role...
-IAM role 'vmimport' not found. Creating...
-IAM role created successfully.
-IAM role policy attached successfully.
-Waiting for IAM role to propagate...
-IAM role is now available.
-Uploading 'BuildingMagic-1.2.ova' to S3 bucket 'ova-ami-import-1756932359-81ddd9a1'...
-Successfully uploaded 'BuildingMagic-1.2.ova' to S3.
-Initiating VM import task...
-Import task started. Task ID: import-ami-02a8b9f1d0a52b6d7
-Monitoring import task status...
-Current status: active - Converting
-...
-Current status: active - Completed
---- Conversion Complete ---
-The OVA file has been successfully converted to an AMI.
-Final AMI Location (ID): ami-02a8b9f1d0a52b6d7```
+python ova_to_ami.py --input /path/to/your/image.ova
+
+```
+
+### Example Output
+
+Plaintext
+
+```
+[*] Creating temporary S3 bucket: ovastack-import-1709734315
+[*] Configuring IAM roles and permissions...
+[*] Uploading my-lab-vm.ova to S3...
+my-lab-vm.ova: 100%|██████████████████████| 2.45G/2.45G [01:12<00:00, 34.1MB/s]
+[*] Initiating AMI Import...
+[*] AWS is now converting the OVA to an AMI (Task: import-ami-08e1a...)
+    -> Current AWS Status: active (25%) - converting
+    -> Current AWS Status: completed (100%) - success
+[*] Sharing AMI and Storage with Account 662863940582...
+[*] Cleaning up temporary S3 bucket...
+
+Import is complete. The AMI ID for CourseStack is ami-0a1b2c3d4e5f6g7h8
+
+```
+
+⚙️ Configuration
+----------------
+
+The script is pre-configured to share resources with the primary CourseStack account. If you need to modify the target account, update the `TARGET_ACCOUNT_ID` constant at the top of the script:
+
+
+Important Note
+------------------
+-   **IAM Permissions**: The script attempts to create the `vmimport` role. If your AWS user does not have IAM administrative privileges, ask your administrator to run the script once to initialize the environment.
