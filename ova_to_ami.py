@@ -135,7 +135,7 @@ def main():
     
     print("[*] Initiating AMI Import...")
     disk_container = {"Description": "CourseStack OVA", "Format": "ova", "UserBucket": {"S3Bucket": bucket_name, "S3Key": ova_key}}
-    response = ec2_client.import_image(Description="CourseStack Image", DiskContainers=[disk_container])
+    response = ec2_client.import_image(Description="CourseStack Image", DiskContainers=[disk_container], Encrypted=False)
     task_id = response['ImportTaskId']
     
     final_status = monitor_import_task(ec2_client, task_id)
